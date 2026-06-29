@@ -197,3 +197,55 @@ app.post('/api/auth/login', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { email, name, picture } = req.body;
+    let user = await User.findOne({ email });
+    if (!user) {
+      const randomPassword = Math.random().toString(36).slice(-8);
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      user = await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        role: 'user',
+        profilePic: picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`
+      });
+    }
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.status(200).json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, profilePic: user.profilePic } });
+  } catch (error) {
+    console.error('Google Auth Error:', error);
+    res.status(500).json({ message: 'Google authentication failed' });
+  }
+});
+
+app.get('/api/auth/me', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json({ user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.patch('/api/users/profile', verifyToken, async (req, res) => {
+  try {
+    const { name, profilePic } = req.body;
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { name, profilePic, updatedAt: Date.now() },
+      { new: true }
+    ).select('-password');
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json({ user: updatedUser });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
