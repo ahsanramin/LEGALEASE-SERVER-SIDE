@@ -349,3 +349,52 @@ app.get('/api/lawyers', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+app.get('/api/lawyers/top', async (req, res) => {
+  try {
+    const topLawyers = await Hiring.aggregate([
+      { $group: { _id: '$lawyerId', hireCount: { $sum: 1 } } },
+      { $sort: { hireCount: -1 } },
+      { $limit: 3 }
+    ]);
+    const lawyerIds = topLawyers.map(item => item._id);
+    let lawyers = await Lawyer.find({ _id: { $in: lawyerIds } }).populate('userId', 'name email profilePic');
+    lawyers = lawyers.map(lawyer => {
+      const match = topLawyers.find(t => t._id.toString() === lawyer._id.toString());
+      return {
+        ...lawyer.toObject(),
+        hireCount: match ? match.hireCount : 0
+      };
+    });
+    res.status(200).json(lawyers);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/lawyers/featured', async (req, res) => {
+  try {
+    const lawyers = await Lawyer.find({ isPublished: true })
+      .populate('userId', 'name email profilePic')
+      .sort({ createdAt: -1 })
+      .limit(6);
+    res.status(200).json(lawyers);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/lawyers/:id', async (req, res) => {
+  try {
+    const lawyer = await Lawyer.findById(req.params.id).populate('userId', 'name email profilePic createdAt');
+    if (!lawyer) {
+      return res.status(404).json({ message: 'Lawyer not found' });
+    }
+    res.status(200).json(lawyer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/lawyers/me/profile', verifyToken, checkRole('lawyer'), async (req, res) => {
+  try {
+    const lawyer = await Lawyer.findOne({
