@@ -298,3 +298,54 @@ app.post('/api/upload', verifyToken, upload.single('image'), async (req, res) =>
   try {
     if (!req.file) {
       return res.status(400).json({ 
+        message: 'No image file provided' });
+    }
+    const imageBuffer = req.file.buffer;
+    const base64Image = imageBuffer.toString('base64');
+    const imgbbUrl = `https://api.imgbb.com/1/upload?key=${process.env.NEXT_PUBLIC_IMAGE_UPLOAD_API}`;
+    const formData = new FormData();
+    formData.append('image', base64Image);
+    const response = await axios.post(imgbbUrl, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    res.status(200).json({ url: response.data.data.url });
+  } catch (error) {
+    res.status(500).json({ message: 'Image upload failed' });
+  }
+});
+
+app.get('/api/lawyers', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+    const minFee = parseFloat(req.query.minFee) || 0;
+    const maxFee = parseFloat(req.query.maxFee) || 1000000;
+    const availability = req.query.availability;
+    const query = { isPublished: true };
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { specialization: { $regex: search, $options: 'i' } }
+      ];
+    }
+    query.fee = { $gte: minFee, $lte: maxFee };
+    if (availability === 'true') query.isBusy = false;
+    if (availability === 'false') query.isBusy = true;
+    const total = await Lawyer.countDocuments(query);
+    const lawyers = await Lawyer.find(query)
+      .populate('userId', 'name email profilePic')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    res.status(200).json({
+      lawyers,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      total
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
