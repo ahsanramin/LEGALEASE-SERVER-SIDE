@@ -249,3 +249,52 @@ app.patch('/api/users/profile', verifyToken, async (req, res) => {
     console.error('Update profile error:', error);
     res.status(500).json({ message: error.message });
   }
+  });
+
+app.get('/api/users/shortlist', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate('shortlist');
+    res.status(200).json(user.shortlist || []);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/users/shortlist/check/:lawyerId', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const isShortlisted = user.shortlist.some(id => id.toString() === req.params.lawyerId);
+    res.status(200).json({ isShortlisted });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/users/shortlist/:lawyerId', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user.shortlist.includes(req.params.lawyerId)) {
+      user.shortlist.push(req.params.lawyerId);
+      await user.save();
+    }
+    res.status(200).json({ message: 'Added to shortlist' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.delete('/api/users/shortlist/:lawyerId', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    user.shortlist = user.shortlist.filter(id => id.toString() !== req.params.lawyerId);
+    await user.save();
+    res.status(200).json({ message: 'Removed from shortlist' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/upload', verifyToken, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
