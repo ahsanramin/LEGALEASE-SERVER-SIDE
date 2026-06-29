@@ -548,3 +548,53 @@ app.patch('/api/hiring/:id', verifyToken, checkRole('lawyer'), async (req, res) 
     if (!hire) {
       return res.status(404).json({ message: 'Hiring request not found' });
     }
+    if (status !== 'accepted' && status !== 'rejected') {
+      return res.status(400).json({ message: 'Invalid status update' });
+    }
+    hire.status = status;
+    hire.updatedAt = Date.now();
+    await hire.save();
+    res.status(200).json(hire);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/hiring/:id/pay', verifyToken, checkRole('user'), async (req, res) => {
+  try {
+    const hire = await Hiring.findOne({ _id: req.params.id, userId: req.user.id })
+      .populate('lawyerId');
+    if (!hire) {
+      return res.status(404).json({ message: 'Hiring record not found' });
+    }
+    if (hire.paymentStatus === 'paid') {
+      return res.status(400).json({ message: 'Already paid' });
+    }
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: hire.amount * 100,
+      currency: 'usd',
+      metadata: {
+        hiringId: hire._id.toString(),
+        userId: req.user.id
+      }
+    });
+    res.status(200).json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/payments/lawyer-publish', verifyToken, checkRole('lawyer'), async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const lawyer = await Lawyer.findOne({ userId: req.user.id });
+    if (!lawyer) {
+      return res.status(404).json({ message: 'Lawyer profile not found' });
+    }
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount * 100,
+      currency: 'usd',
+      metadata: {
+        lawyerId: lawyer._id.toString(),
+        userId: req.user.id
+      }
