@@ -648,3 +648,53 @@ app.post('/api/payments/confirm-hire', verifyToken, checkRole('user'), async (re
         await Transaction.create({
           userId: hire.userId,
           lawyerId: hire.lawyerId,
+                    hiringId: hire._id,
+          amount: hire.amount,
+          transactionId: paymentIntentId,
+          type: 'hiring'
+        });
+        const lawyer = await Lawyer.findById(hire.lawyerId);
+        if (lawyer) {
+          lawyer.isBusy = true;
+          await lawyer.save();
+        }
+        console.log(`[DUMMY EMAIL] To: ${req.user.email} | Subject: Payment Successful | Body: Your payment of $${hire.amount} was successful.`);
+        return res.status(200).json({ message: 'Payment confirmed and status updated' });
+      }
+    }
+    res.status(400).json({ message: 'Payment not successful' });
+  } catch (error) {
+    console.error('[CONFIRM HIRE ERROR]', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/comments', verifyToken, checkRole('user'), async (req, res) => {
+  try {
+    const { lawyerId, content } = req.body;
+    const hasHired = await Hiring.findOne({ userId: req.user.id, lawyerId, paymentStatus: 'paid' });
+    if (!hasHired) {
+      return res.status(403).json({ message: 'You must hire this lawyer and make a payment to comment' });
+    }
+    const comment = await Comment.create({
+      userId: req.user.id,
+      lawyerId,
+      content
+    });
+    const populatedComment = await comment.populate('userId', 'name profilePic');
+    res.status(201).json(populatedComment);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/comments/lawyer/:id', async (req, res) => {
+  try {
+    const comments = await Comment.find({ lawyerId: req.params.id })
+      .populate('userId', 'name profilePic')
+      .sort({ createdAt: -1 });
+    res.status(200).json(comments);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
