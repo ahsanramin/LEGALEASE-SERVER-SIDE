@@ -50,3 +50,51 @@ mongoose.connect(process.env.MONGODB_URI, {
   console.error('MongoDB connection error:', err);
   process.exit(1);
 });
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String },
+  role: { type: String, enum: ['user', 'lawyer', 'admin'], default: 'user' },
+  profilePic: { type: String, default: '' },
+  shortlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Lawyer' }],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const lawyerSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  name: { type: String, required: true },
+  bio: { type: String, required: true },
+  specialization: { type: String, required: true },
+  fee: { type: Number, required: true },
+  image: { type: String, required: true },
+  experience: { type: String, default: '' },
+  location: { type: String, default: '' },
+  isPublished: { type: Boolean, default: false },
+  isBusy: { type: Boolean, default: false },
+  stripePaymentId: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const hiringSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  lawyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lawyer', required: true },
+  status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+  paymentStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
+  amount: { type: Number, required: true },
+  hiringDate: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const commentSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  lawyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lawyer', required: true },
+  content: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const transactionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.
