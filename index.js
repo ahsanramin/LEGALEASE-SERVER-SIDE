@@ -698,6 +698,7 @@ app.get('/api/comments/lawyer/:id', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
 app.get('/api/comments/user', verifyToken, checkRole('user'), async (req, res) => {
   try {
     const comments = await Comment.find({ userId: req.user.id })
@@ -747,3 +748,53 @@ app.get('/api/admin/users', verifyToken, checkRole('admin'), async (req, res) =>
     res.status(500).json({ message: error.message });
   }
 });
+
+app.put('/api/admin/users/:id/role', verifyToken, checkRole('admin'), async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['user', 'lawyer', 'admin'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+    const user = await User.findByIdAndUpdate(req.params.id, { role, updatedAt: Date.now() }, { new: true }).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', verifyToken, checkRole('admin'), async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    await Lawyer.deleteMany({ userId: req.params.id });
+    await Hiring.deleteMany({ userId: req.params.id });
+    await Comment.deleteMany({ userId: req.params.id });
+    await Transaction.deleteMany({ userId: req.params.id });
+    res.status(200).json({ message: 'User and associated data deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/admin/transactions', verifyToken, checkRole('admin'), async (req, res) => {
+  try {
+    const transactions = await Transaction.find({})
+      .populate('userId', 'name email')
+      .populate('lawyerId', 'name')
+      .sort({ createdAt: -1 });
+    res.status(200).json(transactions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/admin/analytics', verifyToken, checkRole('admin'), async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalLawyers = await Lawyer.countDocuments();
+    const totalHires = await Hiring.countDocuments({ status: 'accepted' });
