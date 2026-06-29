@@ -448,3 +448,53 @@ app.put('/api/lawyers/:id', verifyToken, checkRole('lawyer'), async (req, res) =
     lawyer.location = location !== undefined ? location : lawyer.location;
     lawyer.updatedAt = Date.now();
     await lawyer.save();
+ res.status(200).json(lawyer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.delete('/api/lawyers/:id', verifyToken, checkRole('lawyer', 'admin'), async (req, res) => {
+  try {
+    const query = { _id: req.params.id };
+    if (req.user.role === 'lawyer') {
+      query.userId = req.user.id;
+    }
+    const result = await Lawyer.findOneAndDelete(query);
+    if (!result) {
+      return res.status(404).json({ message: 'Lawyer not found or unauthorized' });
+    }
+    res.status(200).json({ message: 'Lawyer profile deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.patch('/api/lawyers/:id/status', verifyToken, checkRole('lawyer', 'admin'), async (req, res) => {
+  try {
+    const { isPublished, isBusy } = req.body;
+    const query = { _id: req.params.id };
+    if (req.user.role === 'lawyer') {
+      query.userId = req.user.id;
+    }
+    const lawyer = await Lawyer.findOne(query);
+    if (!lawyer) {
+      return res.status(404).json({ message: 'Lawyer not found' });
+    }
+    if (isPublished !== undefined) lawyer.isPublished = isPublished;
+    if (isBusy !== undefined) lawyer.isBusy = isBusy;
+    lawyer.updatedAt = Date.now();
+    await lawyer.save();
+    res.status(200).json(lawyer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/hiring', verifyToken, checkRole('user'), async (req, res) => {
+  try {
+    const { lawyerId, amount } = req.body;
+    const existingHire = await Hiring.findOne({ userId: req.user.id, lawyerId, status: 'pending' });
+    if (existingHire) {
+      return res.status(400).json({ message: 'You already have a pending hire request with this lawyer' });
+    }
