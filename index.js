@@ -97,4 +97,54 @@ const commentSchema = new mongoose.Schema({
 });
 
 const transactionSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  lawyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lawyer', required: true },
+  hiringId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hiring' },
+  amount: { type: Number, required: true },
+  transactionId: { type: String, required: true },
+  type: { type: String, enum: ['publishing', 'hiring'], default: 'hiring' },
+  status: { type: String, default: 'success' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+const Lawyer = mongoose.model('Lawyer', lawyerSchema);
+const Hiring = mongoose.model('Hiring', hiringSchema);
+const Comment = mongoose.model('Comment', commentSchema);
+const Transaction = mongoose.model('Transaction', transactionSchema);
+
+async function seedAdmin() {
+  try {
+    const adminEmail = 'admin@gmail.com';
+    const existingAdmin = await User.findOne({ email: adminEmail });
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash('admin@1234', 10);
+      await User.create({
+        name: 'ahsan labib ramin',
+        email: adminEmail,
+        password: hashedPassword,
+        role: 'admin',
+        profilePic: 'https://ui-avatars.com/api/?name=Ahsan+Labib&background=random'
+      });
+      console.log('Default admin created successfully');
+    } else {
+      console.log('Default admin already exists');
+    }
+  } catch (error) {
+    console.error('Admin seeding error:', error);
+  }
+}
+
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
