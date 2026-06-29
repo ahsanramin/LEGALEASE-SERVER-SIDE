@@ -498,3 +498,53 @@ app.post('/api/hiring', verifyToken, checkRole('user'), async (req, res) => {
     if (existingHire) {
       return res.status(400).json({ message: 'You already have a pending hire request with this lawyer' });
     }
+    const hire = await Hiring.create({
+      userId: req.user.id,
+      lawyerId,
+      amount: parseFloat(amount),
+      status: 'pending',
+      paymentStatus: 'unpaid'
+    });
+    res.status(201).json(hire);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/hiring/user', verifyToken, checkRole('user'), async (req, res) => {
+  try {
+    const hires = await Hiring.find({ userId: req.user.id })
+      .populate('lawyerId', 'name specialization fee image')
+      .sort({ createdAt: -1 });
+    res.status(200).json(hires);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/hiring/lawyer', verifyToken, checkRole('lawyer'), async (req, res) => {
+  try {
+    const lawyer = await Lawyer.findOne({ userId: req.user.id });
+    if (!lawyer) {
+      return res.status(404).json({ message: 'Lawyer profile not found' });
+    }
+    const hires = await Hiring.find({ lawyerId: lawyer._id })
+      .populate('userId', 'name email profilePic')
+      .sort({ createdAt: -1 });
+    res.status(200).json(hires);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.patch('/api/hiring/:id', verifyToken, checkRole('lawyer'), async (req, res) => {
+  try {
+    const { status } = req.body;
+    const lawyer = await Lawyer.findOne({ userId: req.user.id });
+    if (!lawyer) {
+      return res.status(404).json({ message: 'Lawyer profile not found' });
+    }
+    const hire = await Hiring.findOne({ _id: req.params.id, lawyerId: lawyer._id });
+    if (!hire) {
+      return res.status(404).json({ message: 'Hiring request not found' });
+    }
