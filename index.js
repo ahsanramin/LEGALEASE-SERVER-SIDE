@@ -397,4 +397,54 @@ app.get('/api/lawyers/:id', async (req, res) => {
 
 app.get('/api/lawyers/me/profile', verifyToken, checkRole('lawyer'), async (req, res) => {
   try {
-    const lawyer = await Lawyer.findOne({
+    const lawyer = await Lawyer.findOne({userId: req.user.id });
+    if (!lawyer) {
+      return res.status(404).json({ message: 'Lawyer profile not found' });
+    }
+    res.status(200).json(lawyer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/lawyers', verifyToken, checkRole('lawyer'), async (req, res) => {
+  try {
+    const { name, bio, specialization, fee, image, stripePaymentId, experience, location } = req.body;
+    const existing = await Lawyer.findOne({ userId: req.user.id });
+    if (existing) {
+      return res.status(400).json({ message: 'Profile already exists' });
+    }
+    const lawyer = await Lawyer.create({
+      userId: req.user.id,
+      name,
+      bio,
+      specialization,
+      fee: parseFloat(fee),
+      image,
+      experience,
+      location,
+      isPublished: true,
+      stripePaymentId: stripePaymentId || ''
+    });
+    res.status(201).json(lawyer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.put('/api/lawyers/:id', verifyToken, checkRole('lawyer'), async (req, res) => {
+  try {
+    const { name, bio, specialization, fee, image, experience, location } = req.body;
+    const lawyer = await Lawyer.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!lawyer) {
+      return res.status(404).json({ message: 'Lawyer profile not found or unauthorized' });
+    }
+    lawyer.name = name || lawyer.name;
+    lawyer.bio = bio || lawyer.bio;
+    lawyer.specialization = specialization || lawyer.specialization;
+    lawyer.fee = fee || lawyer.fee;
+    lawyer.image = image || lawyer.image;
+    lawyer.experience = experience !== undefined ? experience : lawyer.experience;
+    lawyer.location = location !== undefined ? location : lawyer.location;
+    lawyer.updatedAt = Date.now();
+    await lawyer.save();
