@@ -798,3 +798,28 @@ app.get('/api/admin/analytics', verifyToken, checkRole('admin'), async (req, res
     const totalUsers = await User.countDocuments();
     const totalLawyers = await Lawyer.countDocuments();
     const totalHires = await Hiring.countDocuments({ status: 'accepted' });
+    const totalRevenueResult = await Transaction.aggregate([
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    const totalRevenue = totalRevenueResult.length > 0 ? totalRevenueResult[0].total : 0;
+    res.status(200).json({ totalUsers, totalLawyers, totalHires, totalRevenue });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.use((req, res) => {
+  res.status(404).json({ message: 'API route not found' });
+});
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Internal server error' });
+});
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+module.exports = app;
