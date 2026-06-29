@@ -698,3 +698,52 @@ app.get('/api/comments/lawyer/:id', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+app.get('/api/comments/user', verifyToken, checkRole('user'), async (req, res) => {
+  try {
+    const comments = await Comment.find({ userId: req.user.id })
+      .populate('lawyerId', 'name specialization fee image')
+      .populate('userId', 'name profilePic')
+      .sort({ createdAt: -1 });
+    res.status(200).json(comments);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.put('/api/comments/:id', verifyToken, checkRole('user'), async (req, res) => {
+  try {
+    const { content } = req.body;
+    const comment = await Comment.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!comment) {
+      return res.status(404).json({ message: 'Comment not found or unauthorized' });
+    }
+    comment.content = content || comment.content;
+    comment.updatedAt = Date.now();
+    await comment.save();
+    const updatedComment = await comment.populate('userId', 'name profilePic');
+    res.status(200).json(updatedComment);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.delete('/api/comments/:id', verifyToken, checkRole('user'), async (req, res) => {
+  try {
+    const result = await Comment.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    if (!result) {
+      return res.status(404).json({ message: 'Comment not found or unauthorized' });
+    }
+    res.status(200).json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/admin/users', verifyToken, checkRole('admin'), async (req, res) => {
+  try {
+    const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
