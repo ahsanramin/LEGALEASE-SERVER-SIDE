@@ -598,3 +598,53 @@ app.post('/api/payments/lawyer-publish', verifyToken, checkRole('lawyer'), async
         lawyerId: lawyer._id.toString(),
         userId: req.user.id
       }
+      });
+    res.status(200).json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error('[PAYMENT ERROR]', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/payments/confirm-publish', verifyToken, checkRole('lawyer'), async (req, res) => {
+  try {
+    const { paymentIntentId } = req.body;
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (paymentIntent.status === 'succeeded') {
+      const lawyer = await Lawyer.findOne({ userId: req.user.id });
+      if (lawyer) {
+        lawyer.isPublished = true;
+        lawyer.stripePaymentId = paymentIntentId;
+        await lawyer.save();
+        await Transaction.create({
+          userId: req.user.id,
+          lawyerId: lawyer._id,
+          amount: paymentIntent.amount / 100,
+          transactionId: paymentIntentId,
+          type: 'publishing'
+        });
+        console.log(`[DUMMY EMAIL] To: ${req.user.email} | Subject: Profile Published | Body: Your legal profile has been published successfully.`);
+        return res.status(200).json({ message: 'Profile published successfully' });
+      }
+    }
+    res.status(400).json({ message: 'Payment not successful' });
+  } catch (error) {
+    console.error('[CONFIRM PUBLISH ERROR]', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/payments/confirm-hire', verifyToken, checkRole('user'), async (req, res) => {
+  try {
+    const { paymentIntentId } = req.body;
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (paymentIntent.status === 'succeeded') {
+      const hiringId = paymentIntent.metadata.hiringId;
+      const hire = await Hiring.findById(hiringId);
+      if (hire) {
+        hire.paymentStatus = 'paid';
+        hire.updatedAt = Date.now();
+        await hire.save();
+        await Transaction.create({
+          userId: hire.userId,
+          lawyerId: hire.lawyerId,
